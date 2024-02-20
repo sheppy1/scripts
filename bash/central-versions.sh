@@ -41,12 +41,15 @@ EOF
     IFS='=' read -r provider_name provider_info <<< "$provider"
     IFS=':' read -r provider_source provider_version <<< "$provider_info"
 
-    cat <<EOF
+    # Check if the provider is present in the original versions.tf
+    if grep -q "$provider_name" "versions.tf"; then
+      cat <<EOF
     $provider_name = {
       source  = "$provider_source"
       version = "$provider_version"
     }
 EOF
+    fi
   done
 
   cat <<EOF
