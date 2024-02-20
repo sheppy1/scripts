@@ -52,6 +52,7 @@ EOF
   cat <<EOF
   }
 }
+
 EOF
 }
 
@@ -60,6 +61,19 @@ versions_tf_content=$(generate_versions_tf "$required_terraform_version" "${prov
 
 # Save to versions.tf in the root directory
 echo "$versions_tf_content" > "versions.tf"
+
+# Handle the cloud block for integration_tests/fixtures
+if grep -q "cloud {" "integration_tests/fixtures/versions.tf"; then
+  # Extract only the cloud block and save it to tfcloud-config.tf
+  awk '/^  cloud {/,/^  }$/' "integration_tests/fixtures/versions.tf" > "integration_tests/fixtures/tfcloud-config.tf"
+  # Remove the cloud block from the original versions.tf
+  awk '!/^  cloud {/,/^  }$/' "integration_tests/fixtures/versions.tf" > "integration_tests/fixtures/versions.tmp" && mv "integration_tests/fixtures/versions.tmp" "integration_tests/fixtures/versions.tf"
+  # Wrap the cloud block in a terraform block
+  echo -e "terraform {" > "integration_tests/fixtures/tfcloud-config.tmp"
+  cat "integration_tests/fixtures/tfcloud-config.tf" >> "integration_tests/fixtures/tfcloud-config.tmp"
+  echo -e "}\n" >> "integration_tests/fixtures/tfcloud-config.tmp"
+  mv "integration_tests/fixtures/tfcloud-config.tmp" "integration_tests/fixtures/tfcloud-config.tf"
+fi
 
 # Save to versions.tf in the integration_tests/fixtures directory
 echo "$versions_tf_content" > "integration_tests/fixtures/versions.tf"
