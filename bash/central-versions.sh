@@ -8,15 +8,23 @@ providers=()
 # Read required_terraform_version
 required_terraform_version=$(jq -r .required_terraform_version "$json_file")
 
-# Read provider versions
+# Iterate through provider versions directly
 while IFS="=" read -r key value; do
   key=$(echo "$key" | xargs)
   value=$(echo "$value" | xargs)
   [ -z "$key" ] && continue
-  providers+=("$key=$value")
-done < <(jq -r '. | to_entries[] | "\(.key)=\(.value)"' "$json_file")
 
-# Function to generate versions.tf content
+  if [[ "$key" == "required_terraform_version" ]]; then
+    continue  # Skip required_terraform_version
+  fi
+
+  provider_source=$(jq -r ".required_providers[\"$key\"].source" "$json_file")
+  provider_version=$(jq -r ".required_providers[\"$key\"].version" "$json_file")
+
+  providers+=("$key=$provider_source:$provider_version")
+done < <(jq -r '.required_providers | to_entries[] | "\(.key)=\(.value.source)"' "$json_file")
+
+# Function to generate versions.tf content (modified)
 generate_versions_tf() {
   local required_version="$1"
   shift
@@ -30,12 +38,12 @@ terraform {
 EOF
 
   for provider in "${provider_versions[@]}"; do
-    IFS='=' read -r provider_name provider_version <<< "$provider"
-    # Skip required_terraform_version
-    [ "$provider_name" == "required_terraform_version" ] && continue
+    IFS='=' read -r provider_name provider_info <<< "$provider"
+    IFS=':' read -r provider_source provider_version <<< "$provider_info"
+
     cat <<EOF
     $provider_name = {
-      source  = "hashicorp/$provider_name"
+      source  = "$provider_source"
       version = "$provider_version"
     }
 EOF
