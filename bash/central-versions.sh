@@ -2,46 +2,56 @@
 
 # Parse versions from JSON file
 json_file="central-versions.json"
+required_terraform_version=""
 providers=()
 
-# Iterate over JSON keys and extract versions
+# Read required_terraform_version
+required_terraform_version=$(jq -r .required_terraform_version "$json_file")
+
+# Read provider versions
 while IFS="=" read -r key value; do
-  # Remove leading and trailing whitespaces
   key=$(echo "$key" | xargs)
   value=$(echo "$value" | xargs)
-  
-  # Skip empty lines
   [ -z "$key" ] && continue
-
-  # Add provider and version to the array
   providers+=("$key=$value")
-done < <(jq -r "to_entries|map(\"\(.key)=\(.value)\")|.[]" "$json_file")
+done < <(jq -r '. | to_entries[] | "\(.key)=\(.value)"' "$json_file")
 
-# Function to update versions.tf file
-update_versions_file() {
-  local file_path="$1"
-  
-  if [ -f "$file_path" ]; then
-    # Update an existing file
-    for provider in "${providers[@]}"; do
-      IFS='=' read -r provider_name provider_version <<< "$provider"
-      # Check if the provider block already exists
-      if grep -q "$provider_name" "$file_path"; then
-        # Use awk to replace the version within the existing provider block with proper indentation
-        awk -v provider_name="$provider_name" -v provider_version="$provider_version" '
-          BEGIN { found = 0 }
-          /'"$provider_name"'/ { found = 1; print; next }
-          found && /version/ { found = 0; print "      version = \"" provider_version "\""; next }
-          found { next }
-          { print }
-        ' "$file_path" > "$file_path.tmp" && mv "$file_path.tmp" "$file_path"
-      fi
-    done
-  fi
+# Function to generate versions.tf content
+generate_versions_tf() {
+  local required_version="$1"
+  shift
+  local provider_versions=("$@")
+
+  cat <<EOF
+terraform {
+  required_version = "$required_version"
+
+  required_providers {
+EOF
+
+  for provider in "${provider_versions[@]}"; do
+    IFS='=' read -r provider_name provider_version <<< "$provider"
+    # Skip required_terraform_version
+    [ "$provider_name" == "required_terraform_version" ] && continue
+    cat <<EOF
+    $provider_name = {
+      source  = "hashicorp/$provider_name"
+      version = "$provider_version"
+    }
+EOF
+  done
+
+  cat <<EOF
+  }
+}
+EOF
 }
 
-# Update versions.tf in the root directory
-update_versions_file "versions.tf"
+# Generate versions.tf content
+versions_tf_content=$(generate_versions_tf "$required_terraform_version" "${providers[@]}")
 
-# Update versions.tf in the integration_tests/fixtures directory
-update_versions_file "integration_tests/fixtures/versions.tf"
+# Save to versions.tf in the root directory
+echo "$versions_tf_content" > "versions.tf"
+
+# Save to versions.tf in the integration_tests/fixtures directory
+echo "$versions_tf_content" > "integration_tests/fixtures/versions.tf"
