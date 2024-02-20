@@ -1,0 +1,22 @@
+{
+    "required_terraform_version": "1.8.0",
+    "required_providers": {
+      "azurerm_version": {
+        "source": "hashicorp/azurerm",
+        "version": "0.38.0"
+      },
+      "azuread_version": {
+        "source": "hashicorp/azuread",
+        "version": "0.3.0"
+      },
+      "random": {
+        "source": "hashicorp/random",
+        "version": "1.1.1"
+      },
+      "environment": {
+        "source": "Epp0/environment",
+        "version": "1.2.2"
+      }
+    }
+  }
+  
